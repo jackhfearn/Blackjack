@@ -34,8 +34,49 @@ import random, time
 # (H)it, (S)tand, (D)ouble down
 
 
-
 def blackjack():
+    class Hand:
+        def __init__(self):
+            self.cards = []
+            self.value = 0
+            self.ace = False
+
+        def update(self):
+            self.ace = False
+            self.value = 0
+            for card in self.cards:
+                if card[0] == 'A':
+                    self.ace = True
+                    self.value += 1
+                elif card[0] in ['J', 'Q', 'K']:
+                    self.value += 10
+                else:
+                    self.value += int(card[0])
+                if self.value + 10 > 21: self.ace = False
+
+    class Player:
+        def __init__(self, name, funds):
+            self.name = name
+            self.funds = funds
+            self.hand = [Hand()]
+            self.has_split = False
+
+        def adjust_funds(self, amount):
+            self.funds += amount
+
+        def reset_hand(self):
+            self.hand = [Hand()]
+            self.has_split = False
+
+        def split(self):
+            self.has_split = True
+            second_card = self.hand[1].cards.pop()
+            self.hand.append(Hand())
+            self.hand[-1].cards.append(second_card)
+
+
+
+
     def wait_time():  # Adjust speed of play
         time.sleep(1)
 
