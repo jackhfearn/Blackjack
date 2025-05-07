@@ -153,7 +153,7 @@ def blackjack_oop():
                 bet = 0
                 print('Please enter a valid number (bets are made in values of 10).')
         position.adjust_funds(- bet)  # Negative number - instantly removed from overall funds
-        position.bet = bet
+        position.hand.bet = bet
 
     def dealer_turn(house):
         house.hand.update()
@@ -171,7 +171,7 @@ def blackjack_oop():
             wait_time()
             if house.hand.value > 21:  # Bust
                 print('Dealer busts!')
-                break
+                return
             elif house.hand.ace == True and (17 <= house.hand.value + 10 <= 21):
                 house.hand.value += 10  # if ace, use higher score
                 break
@@ -184,56 +184,92 @@ def blackjack_oop():
         print(f'Dealer stands with: {house.hand.value}')
 
     def player_turn(position):
-        def p_action():
+        def p_action(first):
             while True:
-                try:
-                    choice = str(input('(H)it, (S)tand, (D)ouble down:\n'))
-                    match choice.upper():
-                        case 'H' | 'S' | 'D':
-                            return choice.upper()
-                        case _:
-                            print('Invalid input! Type ''H'', ''S'', or ''D''')
-                except ValueError:
-                    print('Invalid input! Type ''H'', ''S'', or ''D''')
+                if first:
+                    try:
+                        choice = str(input('(H)it / (S)tand / (D)ouble down:\n'))
+                        match choice.upper():
+                            case 'H' | 'S' | 'D':
+                                return choice.upper()
+                            case _:
+                                print('Invalid input! Type ''H'', ''S'', or ''D''')
+                    except ValueError:
+                        print('Invalid input!')
+                else:
+                    try:
+                        choice = str(input('(H)it / (S)tand:\n'))
+                        match choice.upper():
+                            case 'H' | 'S':
+                                return choice.upper()
+                            case _:
+                                print('Invalid input! Type ''H'' or ''S''')
+                    except ValueError:
+                        print('Invalid input!')
 
         position.hand.update()
-        print_score(position)
+        print_score(position.name, position.hand)
         if position.hand.value + 10 == 21 and position.hand.ace:
             print(f'{position.name} has Blackjack (21)!')
             position.hand.blackjack = True
             return
         else:
             dealer.hand.update(dealer_hidden=True)  # Hides value of second card by not including in update
-            print_score(dealer)
+            print_score(dealer.name, dealer.hand)
 
         # add function here to split hands eventually if equal value cards show up in initial 2 drawn?
-        while True:
-            if position.hand.value > 21:
-                print('Player bust!')
-                break  # Ends turn without continuing through cards
-            move = p_action()
-            if move == 'S':  # Stand
-                if position.hand.ace:
-                    position.hand.value += 10
-                break
-            if move == 'D':
-                # double the bet (ONLY THE FIRST TIME ROUND -- MUST REMOVE OPTION FOR SECOND PLAYER INPUT)
-                position.funds -= position.hand.bet
-                position.hand.bet = position.hand.bet * 2
-                print('Bet doubled. Draw one more card:')
-                position.hand.cards.append(active_deck.draw())
-                position.hand.update()
-                print(f'You drew a {position.hand.cards[-1].rank} of {position.hand.cards[-1].suit}')
-                print_hand(position.hand, False)
-                break
-            if move == 'H': # Hit
-                position.hand.cards.append(active_deck.draw())
-                position.hand.update()
-                print(f'You drew a {position.hand.cards[-1].rank} of {position.hand.cards[-1].suit}')
-                print_hand(position.hand, False)
-            position.hand.update()
-            print_score(position)
-        print(f'Player stands with: {position.hand.value + 10}' if position.hand.ace else f'You have: {position.hand.value}')
+        split_case = (position.hand.cards[0].rank == position.hand.cards[1].rank)
+        while split_case == True:
+            try:
+                choice = str(input('Do you want to Split? (Y/N)'))
+                match choice.upper():
+                    case 'Y':
+                        break
+                    case 'N':
+                        split_case = False
+                        break
+                    case _:
+                        print('Invalid input!')
+            except ValueError:
+                print('Invalid input!')
+        if split_case:
+            position.split_hand.cards.append(position.hand.cards.pop())
+            hands = [position.hand,position.split_hand]
+        else:
+            hands = [position.hand]
+        first_action = True
+        for i in hands:
+                while True:
+                if i.value > 21:
+                    print('Player bust!')
+                    break  # Ends turn without continuing through cards
+                move = p_action(first_action)
+                if move == 'S':  # Stand
+                    if i.ace:
+                       i.value += 10
+                    break
+                if move == 'D':
+                    # double the bet (ONLY THE FIRST TIME ROUND -- MUST REMOVE OPTION FOR SECOND PLAYER INPUT)
+                    position.funds -= i.bet
+                    i.bet = i.bet * 2
+                    print('Bet doubled. Draw one more card:')
+                    i.cards.append(active_deck.draw())
+                    i.update()
+                    print(f'You drew a {i.cards[-1].rank} of {i.cards[-1].suit}')
+                    print_hand(i, False)
+                    if i.value > 21:
+                        print('Player bust!')
+                    break  # Ends turn without continuing through cards
+                if move == 'H': # Hit
+                    first_action = False
+                    i.cards.append(active_deck.draw())
+                    i.update()
+                    print(f'You drew a {i.cards[-1].rank} of {i.cards[-1].suit}')
+                    print_hand(i, False)
+                i.update()
+                print_score(position.name, i)
+                first_action = False
+            print(f'Player stands with: {i.value + 10}' if i.ace else f'You have: {i.value}')
 
     def deal():    # Deal Cards
         active_deck.burn()  # burn first card as in casinos
@@ -253,9 +289,9 @@ def blackjack_oop():
                   f' {person.hand.cards[1].rank} of {person.hand.cards[1].suit}')
             wait_time()
 
-    def print_score(position):
-        print(f'{position.name} has: {position.hand.value} ({position.hand.value + 10})'
-              if position.hand.ace else f'{position.name} has: {position.hand.value}')
+    def print_score(name, hand):
+        print(f'{name} has: {hand.value} ({hand.value + 10})'
+              if hand.ace else f'{name} has: {hand.value}')
 
     def print_hand(hand, dealer_hidden):  # NOT YET FIXED
         card_design = [' ___ ',
@@ -281,6 +317,36 @@ def blackjack_oop():
         for i in range(4):
             ''.join(hand_graphic[i])
             print('  '.join(hand_graphic[i]))
+
+    def resolve_hand(hand):
+        # Blackjack - Player (Win), also Dealer Blackjack (Draw/Push)
+        # Player Bust (Lose)
+        # Dealer Bust (Win)
+        # Player > Dealer (Win) / Draw/Push / Lose (P<D)
+
+        if hand.blackjack:  # If player has Blackjack
+            if dealer.hand.blackjack:  # If Dealer also has Blackjack
+                print(f'{person.name}: Draw. Bets returned.')
+                return person.hand.bet  # Return bet only
+            else:
+                print(f'{person.name} has Blackjack (21)! Player wins!')
+                return int(person.hand.bet * 2.5)  # Return bet + winnings at 3:2
+        elif person.hand.value > 21:
+            print(f'{person.name}: Bust! Bet lost.')  # Bet already deducted
+            return 0
+        elif dealer.hand.value > 21:
+            print(f'{person.name}: {dealer.name} is bust!')
+            print(f'{person.name} wins with {person.hand.value}')
+            return int(person.hand.bet * 2) # Return bet + winnings at 2:2
+        elif person.hand.value > dealer.hand.value:
+            print(f'{person.name}: wins with {person.hand.value}')
+            return int(person.hand.bet * 2) # Return bet + winnings at 2:2
+        elif person.hand.value == dealer.hand.value:
+            print(f'{person.name}: Draw. Bets returned.')
+            return person.hand.bet  # Return bet only
+        else:  # Player < Dealer
+            print(f'{person.name}: Dealer wins with {dealer.hand.value}')
+            return 0
 
     # INITIAL SETUP
     print(f'{chr(9827) + chr(9829) + chr(9830) + chr(9824)} BLACKJACK {chr(9827) + chr(9829) + chr(9830) + chr(9824)}')
@@ -308,7 +374,6 @@ def blackjack_oop():
         for person in Player.all_players:
             if not isinstance(person, Dealer):
                 betting(person)
-
         # Deal Cards
         deal()
 
@@ -325,32 +390,9 @@ def blackjack_oop():
         print('\nRESULTS:')
         for person in Player.all_players:
             if not isinstance(person, Dealer):
-                # Blackjack - Player (Win), also Dealer Blackjack (Draw/Push)
-                # Player Bust (Lose)
-                # Dealer Bust (Win)
-                # Player > Dealer (Win) / Draw/Push / Lose (P<D)
-
-                if person.hand.blackjack:  # If player has Blackjack
-                    if dealer.hand.blackjack:  # If Dealer also has Blackjack
-                        print(f'{person.name}: Draw. Bets returned.')
-                        person.funds += person.hand.bet  # Return bet only
-                    else:
-                        print(f'{person.name} has Blackjack (21)! Player wins!')
-                        person.funds += person.hand.bet * 2.5  # Return bet + winnings at 3:2
-                elif person.hand.value > 21:
-                    print(f'{person.name}: Bust! Bet lost.')  # Bet already deducted
-                elif dealer.hand.value > 21:
-                    print(f'{person.name}: {dealer.name} is bust!')
-                    print(f'{person.name} wins with {person.hand.value}')
-                    person.funds += person.hand.bet * 2 # Return bet + winnings at 2:2
-                elif person.hand.value > dealer.hand.value:
-                    print(f'{person.name}: wins with {person.hand.value}')
-                    person.funds += person.hand.bet * 2 # Return bet + winnings at 2:2
-                elif person.hand.value == dealer.hand.value:
-                    print(f'{person.name}: Draw. Bets returned.')
-                    person.funds += person.hand.bet  # Return bet only
-                else:  # Player < Dealer
-                    print(f'{person.name}: Dealer wins with {dealer.hand.value}')
+                person.funds += resolve_hand(person.hand)
+            if len(person.split_hand.cards) != 0:
+                person.funds += resolve_hand(person.split_hand)
 
         # Play again? If not, breaks outermost loop and ends programme
         try:
@@ -366,8 +408,7 @@ def blackjack_oop():
                 break
         except ValueError:
             print('Invalid input! Type ''Y'' or ''N''')
-        print('\n\n')
-
+            print()
 
 def blackjack():
     def wait_time():  # Adjust speed of play
